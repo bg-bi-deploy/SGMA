@@ -1,5 +1,5 @@
 M107
-M190 S50 ; set bed temperature and wait for it to be reached ok
+M190 S50 ; set bed temperature and wait for it to be reached okok
 M109 S180 ; set temperature and wait
 M107 ;turn off fan
 G21 ; set units to millimeters
