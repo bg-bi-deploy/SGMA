@@ -1,0 +1,61 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<dataTemplate name="SGAP22JUSTTVA"> 
+<parameters>
+  <parameter name="P_DATEDU"  dataType="varchar2"/>
+  <parameter name="P_DATEAU"  dataType="varchar2"/>
+</parameters>
+
+<dataQuery>
+<sqlStatement name="Q_TVA">
+<![CDATA[
+
+
+select
+'XXX' NumCptTVA,
+'XXX' DateCompta,
+'XXX' NumFact,
+'XXX' DateFact,
+'XXX' NomRaisonFrn,
+'XXX' DesgnBienSrv,
+'XXX' MntHT,
+'XXX' TauxTVA,
+'XXX' MntTva,
+'XXX' TvaRecup,
+'XXX' MntTTC
+from dual
+
+]]>
+</sqlStatement>
+
+<sqlStatement name="Q_INFO">
+<![CDATA[
+select 
+to_char(to_date(:P_DATEDU,'YYYY/MM/DD HH24:MI:SS'),'DD/MM/YYYY') P_DATEDU_C,
+to_char(to_date(:P_DATEAU,'YYYY/MM/DD HH24:MI:SS'),'DD/MM/YYYY') P_DATEAU_C
+from dual
+]]>
+</sqlStatement>
+
+</dataQuery>
+
+<dataStructure>
+<group name="G_INFO" source="Q_INFO">
+		<element name="P_DATEDU_C"  dataType="varchar2"   value="P_DATEDU_C"/>
+		<element name="P_DATEAU_C"  dataType="varchar2"   value="P_DATEAU_C"/>
+</group>	
+<group name="G_TVA"  source="Q_TVA">
+		<element name="NumCptTVA"  value="NumCptTVA"/>
+		<element name="DateCompta"  value="DateCompta"/>
+		<element name="NumFact"  value="NumFact"/>
+		<element name="DateFact"  value="DateFact"/>
+		<element name="NomRaisonFrn"  value="NomRaisonFrn"/>
+		<element name="DesgnBienSrv"  value="DesgnBienSrv"/>
+		<element name="MntHT"  value="MntHT"/>
+		<element name="TauxTVA"  value="TauxTVA"/>
+		<element name="MntTva"  value="MntTva"/>
+		<element name="TvaRecup"  value="TvaRecup"/>
+		<element name="MntTTC"  value="MntTTC"/>
+</group>
+</dataStructure>
+
+</dataTemplate>
