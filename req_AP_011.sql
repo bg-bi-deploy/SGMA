@@ -1,20 +1,23 @@
+select  line_number,NumFact,DateFact,NomRaisonFrn,IdfFrn,IceFrn,DsgnBnSrvc,MntHT,sum(TauxTva) TauxTva,sum(MntHT*TauxTva/100) MntTva,TauxPrataDed,MntTvaRec,ModePai,DatePai
+from
+(
 SELECT 
+apinvl1.line_number,
 apinv.INVOICE_NUM NumFact,
 apinv.INVOICE_DATE DateFact,
-apinv.VENDOR_ID NomRaisonFrn,
-aps.vendor_name IdfFrn,
-apinvl1.item_description IceFrn,
-'XXX' DsgnBnSrvc,
-apinvl1.base_amount MntHT,
-zxl.TAX_RATE TauxTva,
-zxl.tax_amt MntTva,
+aps.vendor_name  NomRaisonFrn,
+aps.attribute1 IdfFrn,
+aps.attribute2 IceFrn,
+apinvl1.description DsgnBnSrvc,
+nvl(apinvl1.base_amount ,apinvl1.amount) MntHT ,
+nvl(zxl.TAX_RATE,0)  TauxTva,
+nvl(zxl.tax_amt,0) MntTva,
 0 MntTTC,
-apinvd2.rec_nrec_rate TauxPrataDed,
-apinvd2.base_amount MntTvaRec,
+nvl(apinvd2.rec_nrec_rate,0) TauxPrataDed,
+nvl2(apinvd2.base_amount,apinvd2.amount,0) MntTvaRec,
 apinv.PAYMENT_METHOD_CODE ModePai,
 apc.CHECK_DATE DatePai
-,apinvd2.*
-
+--,zxl.*
  from 
   ap_invoices_all apinv
  ,AP_INVOICE_PAYMENTS_ALL appay
@@ -29,23 +32,30 @@ apc.CHECK_DATE DatePai
  and apinvl1.LINE_TYPE_LOOKUP_CODE= 'ITEM'
  --and apinv.invoice_id in (47010,33008)
  --and apinv.invoice_id in (39019)
-and apinv.invoice_id in (48011) 
+and apinv.invoice_id in (18507,14793,188525,177200,545011,53965) --bg-bi server
  and apinv.vendor_id=aps.vendor_id
  and apinv.invoice_id=apinvl1.invoice_id
- and zxl.trx_id=apinv.invoice_id
- and zxl.trx_level_type = 'LINE'
- and zxl.trx_line_id = 1
- and zxl.CANCEL_FLAG ='N'
+ and zxl.trx_id(+)=apinv.invoice_id
+ and zxl.trx_line_number(+)=apinvl1.line_number
+ and zxl.trx_level_type(+) = 'LINE'
+ --and zxl.trx_line_id = 1
+ and zxl.CANCEL_FLAG(+) ='N'
  and appay.invoice_id=apinv.invoice_id
- and appay.reversal_flag = 'N'
+ and nvl(appay.reversal_flag,'N') = 'N'
  and appay.check_id=apc.check_id
- and apinv.invoice_id = apinvd1.invoice_id
+ and apinv.invoice_id = apinvd1.invoice_id(+)
  and apinvl1.line_number=apinvd1.invoice_line_number
  and apinv.invoice_id = apinvd2.invoice_id(+)
  and apinvd1.invoice_distribution_id = apinvd2.charge_applicable_to_dist_id(+)
- and apinvd2.line_type_lookup_code (+) = 'REC_TAX'
- order by 1 asc
+ and apinvd2.line_type_lookup_code(+) = 'REC_TAX'
+ )
+ group by
+ line_number,NumFact,DateFact,NomRaisonFrn,IdfFrn,IceFrn,DsgnBnSrvc,MntHT,TauxPrataDed,MntTvaRec,ModePai,DatePai
+ order by 2,1
  ;
+ 
+ select invoice_id from ap_invoices_all where  invoice_num='01689';
+ 
  po_change_api1_s
  ;
  select invoice_distribution_id,apinvdist.charge_applicable_to_dist_id,base_amount,amount,DISTRIBUTION_LINE_NUMBER, invoice_line_number, line_type_lookup_code,reversal_flag,cancelled_flag,apinvdist.* from   AP_INVOICE_DISTRIBUTIONS_all  apinvdist
