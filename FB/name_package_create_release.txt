@@ -1,0 +1,27 @@
+Person:Stock, Ms. Pat
+Customer:Pat Stock
+
+release 6556
+2 lines
+
+commande ouverte :6575
+
+6575.1
+
+DA    -> commande ouverte
+ligne ->
+
+1 creation blanket
+2 create requisition (2.1 inject req 2.2 import req)
+3 autocreate release  (reltif to blanket : 6575)
+
+po_release_id=433894
+
+Create Releases
+ /u01/install/APPS/fs1/EBSapps/appl/po/12.0.0/forms/US/POXBWVRP.fmx
+ 
+ --- trt
+ Create Releases : PORELGEN
+ exe:porgcon
+ po_relgen_pkg.create_releases;
+
