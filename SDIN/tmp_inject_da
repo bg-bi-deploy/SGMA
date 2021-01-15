@@ -1,0 +1,19 @@
+
+Erreur commençant à la ligne: 7 de la commande -
+BEGIN xxsgma_po_rep_da; END;
+Rapport d'erreur -
+ORA-12899: valeur trop grande pour la colonne "PO"."PO_REQUISITIONS_INTERFACE_ALL"."UOM_CODE" (réelle : 5, maximum : 3)
+ORA-06512: à "APPS.XXSGMA_PO_REP_DA", ligne 14
+ORA-06512: à ligne 1
+12899. 00000 -  "value too large for column %s (actual: %s, maximum: %s)"
+*Cause:    An attempt was made to insert or update a column with a value
+           which is too wide for the width of the destination column.
+           The name of the column is given, along with the actual width
+           of the value, and the maximum allowed width of the column.
+           Note that widths are reported in characters if character length
+           semantics are in effect for the column, otherwise widths are
+           reported in bytes.
+*Action:   Examine the SQL statement for correctness.  Check source
+           and destination column data types.
+           Either make the destination column wider, or use a subset
+           of the source column (i.e. use substring).

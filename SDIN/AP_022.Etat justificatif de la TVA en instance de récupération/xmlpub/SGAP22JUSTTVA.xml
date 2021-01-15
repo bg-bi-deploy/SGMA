@@ -1,0 +1,105 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<dataTemplate name="SGAP22JUSTTVA"> 
+<parameters>
+  <parameter name="P_FACTDATE"  dataType="varchar"/>
+</parameters>
+
+<dataQuery>
+<sqlStatement name="Q_TVA">
+<![CDATA[
+
+select NumCptTVA,DateCompta,NumFact,DateFact,NomRaisonFrn,DesgnBienSrv,MntHT,TauxTVA, TauxTVA,MntTva,TvaRecup,MntTTC
+from
+(
+		select  NumCptTVA,DateCompta,NumFact,DateFact,NomRaisonFrn,DesgnBienSrv,
+		MntHT,sum(nvl(TauxTVA,0)) TauxTVA,
+		sum(nvl(MntTva,0)) MntTva,
+		sum(nvl(TvaRecup,0)) TvaRecup,
+		MntHT+sum(nvl(MntTva,0)) MntTTC
+		from
+		(
+					select
+					gcc.segment2 NumCptTVA,
+					to_char(xlate.creation_date,'DD/MM/YYYY') DateCompta,
+					apinv.invoice_num  NumFact,
+					to_char(apinv.invoice_date,'DD/MM/YYYY') DateFact,
+					aps.vendor_name NomRaisonFrn,
+					apinvl1.description DesgnBienSrv,
+					apinvl1.amount MntHT,
+					nvl(zxl.TAX_RATE,0)  TauxTVA,
+					nvl(zxl.tax_amt,0) MntTva,
+					--nvl(nvl(apinvd2.base_amount,apinvd2.amount),0)  TvaRecup,
+					nvl(apinvd2.amount,0)  TvaRecup,
+					0 MntTTC
+					from 
+					ap_invoices_all apinv
+					,ap_invoice_lines_all apinvl1
+					,AP_INVOICE_DISTRIBUTIONS_all apinvd1
+					,AP_INVOICE_DISTRIBUTIONS_all apinvd2
+					,ap_suppliers aps
+					,ZX_LINES zxl
+					,gl_code_combinations gcc
+					,xla_transaction_entities xlate
+					 where
+					  1=1
+					--and apinv.invoice_id=19000
+					--and apinv.invoice_num='10016'
+					and apinvl1.LINE_TYPE_LOOKUP_CODE= 'ITEM'
+					and nvl(apinvl1.DISCARDED_FLAG,'N') <> 'Y'
+					and apinv.invoice_id=apinvl1.invoice_id
+					and apinv.vendor_id=aps.vendor_id
+					and zxl.trx_id(+)=apinv.invoice_id
+					and zxl.trx_line_number(+)=apinvl1.line_number
+					and zxl.trx_level_type(+) = 'LINE'
+					and zxl.CANCEL_FLAG(+) ='N'
+					and apinv.invoice_id = apinvd1.invoice_id
+					and apinvl1.line_number=apinvd1.invoice_line_number(+)
+					and apinv.invoice_id = apinvd2.invoice_id(+)
+					and apinvd1.invoice_distribution_id = apinvd2.charge_applicable_to_dist_id(+)
+					and apinvd2.line_type_lookup_code(+) = 'REC_TAX'
+					and gcc.code_combination_id=apinvd2.DIST_CODE_COMBINATION_ID
+					and xlate.application_id(+)=200
+					and  xlate.source_id_int_1(+)=apinv.invoice_id
+					and apinv.invoice_amount <>apinv.amount_paid
+					and apinv.invoice_type_lookup_code not in ('AWT')
+					--and rownum <101
+					and xlate.creation_date<=to_date(:P_FACTDATE,'YYYY/MM/DD HH24:MI:SS')
+		)
+		group by NumCptTVA,DateCompta,NumFact,DateFact,NomRaisonFrn,DesgnBienSrv,MntHT
+)
+where TvaRecup <> 0
+order by datefact
+
+]]>
+</sqlStatement>
+
+<sqlStatement name="Q_INFO">
+<![CDATA[
+select 
+to_char(to_date(:P_FACTDATE,'YYYY/MM/DD HH24:MI:SS'),'DD/MM/YYYY') P_FACTDATE_C
+from dual
+]]>
+</sqlStatement>
+
+</dataQuery>
+
+<dataStructure>
+<group name="G_INFO" source="Q_INFO">
+		<element name="P_FACTDATE_C"  dataType="varchar"   value="P_FACTDATE_C"/>
+</group>	
+<group name="G_TVA"  source="Q_TVA">
+		<element name="NumCptTVA"  value="NumCptTVA"/>
+		<element name="DateCompta"  value="DateCompta"/>
+		<element name="NumFact"  value="NumFact"/>
+		<element name="DateFact"  value="DateFact"/>
+		<element name="NomRaisonFrn"  value="NomRaisonFrn"/>
+		<element name="DesgnBienSrv"  value="DesgnBienSrv"/>
+		<element name="MntHT"  value="MntHT"/>
+		<element name="TauxTVA"  value="TauxTVA"/>
+		<element name="MntTva"  value="MntTva"/>
+		<element name="TvaRecup"  value="TvaRecup"/>
+		<element name="MntTTC"  value="MntTTC"/>
+</group>
+</dataStructure>
+
+</dataTemplate>

@@ -1,0 +1,99 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+
+<dataTemplate name="SGPO4SC"> 
+<parameters>
+<parameter name="P_ORG_ID"  dataType="varchar"/>
+<parameter name="P_DATECREDU"  dataType="varchar"/>
+<parameter name="P_DATECREAU"  dataType="varchar"/>
+
+</parameters>
+
+<dataQuery>
+<sqlStatement name="Q_ST_CMD">
+<![CDATA[
+
+SELECT 
+replace(hou.name,'_UO','')  CB,
+decode(poh.TYPE_LOOKUP_CODE , 'STANDARD', poh.segment1,poh.segment1||'.'||por.RELEASE_NUM )  Numero,
+decode(msi.inventory_item_id,null,null,msi.segment1||'.'||msi.segment2||'.'||msi.segment3) CodeArticle,
+msi.description DescArticle,
+Decode(decode(poh.TYPE_LOOKUP_CODE ,'STANDARD', poh.authorization_status, por.authorization_status),'APPROVED','Approuvée','Non Approuvée')  StatutApprob,
+decode(poh.TYPE_LOOKUP_CODE ,'STANDARD',poh.creation_date,por.creation_date ) DateCreCmd,
+decode(poh.TYPE_LOOKUP_CODE ,'STANDARD',poh.approved_date,por.approved_date ) DateApprobCmd,
+aps.vendor_name Fournisseur,
+poh.CURRENCY_CODE DeviseCmd,
+decode(poh.TYPE_LOOKUP_CODE,'STANDARD',nvl(XXSGMA_PO_TOTAL_COM.HEADER_TOTAL_PRIX (poh.po_header_id, ''),0),nvl(XXSGMA_PO_TOTAL_COM.release_total_prix(por.po_release_id, ''),0)) MontantCmd,
+decode(poh.TYPE_LOOKUP_CODE,'STANDARD',pol.unit_price,poll.price_override) prix_unit,
+decode(poh.TYPE_LOOKUP_CODE,'STANDARD',pol.unit_price,poll.price_override)*poll.quantity qty_linecmd,
+decode(poh.TYPE_LOOKUP_CODE,'STANDARD',pol.unit_price,poll.price_override)*poll.quantity_received MontantRecp,
+decode(poh.TYPE_LOOKUP_CODE,'STANDARD',pol.unit_price,poll.price_override)*poll.quantity_billed   MontantFact,
+decode(poll.closed_code,'OPEN','ouverte','CLOSED','fermée','CLOSED FOR INVOICE','fermée pour facturation','CLOSED FOR RECEIVING','fermée pour réception','FINALLY CLOSED','fermée définitivement') StatutFerm,
+pol.cancel_flag CmdAnnul,
+pol.cancel_date DateAnnul,
+pol.cancel_reason MotifAnnul
+from
+  po_headers_all poh
+ ,po_releases_all por
+ ,po_lines_all pol
+ ,po_line_locations_all poll
+ ,ap_suppliers aps
+ ,MTL_SYSTEM_ITEMS_B  msi
+ ,rcv_shipment_lines rcvshl
+ ,HR_ALL_ORGANIZATION_UNITS hou
+  where 
+1=1
+and poh.po_header_id  = por.po_header_id(+)
+and poh.po_header_id = pol.po_header_id
+and pol.po_line_id = poll.po_line_id
+and por.po_release_id(+) = poll.po_release_id 
+and poh.vendor_id=aps.vendor_id
+and msi.inventory_item_id(+) = pol.item_id
+and msi.organization_id(+) = poll.ship_to_organization_id
+and decode(poh.TYPE_LOOKUP_CODE ,'BLANKET',nvl(por.po_release_id,0),1)!= 0
+and poll.po_header_id = rcvshl.po_header_id(+)
+and poll.po_line_id = rcvshl.po_line_id(+)
+and poll.line_location_id = rcvshl.po_line_location_id(+)
+--and poh.SEGMENT1 in ('39','5')
+--and por.release_num(+) = '1'
+and poh.org_id=:P_ORG_ID
+and poh.org_id = hou.organization_id
+and poh.creation_date between to_date(:P_DATECREDU,'RRRR/MM/DD HH24:MI:SS') and to_date(:P_DATECREAU,'RRRR/MM/DD HH24:MI:SS')
+order by poh.po_header_id,por.po_release_id,poll.po_line_id
+  
+]]>
+</sqlStatement>
+
+ <sqlStatement name="Q_INFO">
+<![CDATA[  
+  select 	to_char(sysdate,'DD/MM/YYYY') date_edition from dual
+  ]]> 
+</sqlStatement>
+
+</dataQuery>
+
+<dataStructure>
+
+	<group name="G_ORGA" source="Q_INFO">
+			<element name="date_edition" dataType="varchar2" value="date_edition" /> 
+	</group>
+<group name="ST_CMD"  source="Q_ST_CMD">
+	<element name="CB"  value="CB"/>
+	<element name="Numero"  value="Numero"/>
+	<element name="CodeArticle"  value="CodeArticle"/>
+	<element name="DescArticle"  value="DescArticle"/>
+	<element name="StatutApprob"  value="StatutApprob"/>
+	<element name="DateCreCmd"  value="DateCreCmd"/>
+	<element name="DateApprobCmd"  value="DateApprobCmd"/>
+	<element name="Fournisseur"  value="Fournisseur"/>
+	<element name="DeviseCmd"  value="DeviseCmd"/>
+	<element name="MontantCmd"  value="MontantCmd"/>
+	<element name="MontantRecp"  value="MontantRecp"/>
+	<element name="MontantFact"  value="MontantFact"/>
+	<element name="StatutFerm"  value="StatutFerm"/>
+	<element name="CmdAnnul"  value="CmdAnnul"/>
+	<element name="DateAnnul"  value="DateAnnul"/>
+	<element name="MotifAnnul"  value="MotifAnnul"/>
+</group>
+</dataStructure>
+
+</dataTemplate>

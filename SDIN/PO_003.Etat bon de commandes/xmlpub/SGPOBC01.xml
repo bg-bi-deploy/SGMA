@@ -1,0 +1,225 @@
+﻿<?xml version="1.0" encoding="UTF-8" ?>
+<!-- $Header: DATA_TEMPLATE_SGMA_XXSGMABDCOMMANDE.xml 115.0 2011/05/11 11:31:19 xdouser noship $ -->
+<!-- dbdrv: none -->
+
+<dataTemplate name="SGPOBC01" description="Etat, Bon de commande" dataSourceRef="APPS" defaultPackage="" version="1.0"> 
+<parameters>
+	
+	<parameter name="P_PO_NUM_FROM"       dataType="character" />
+	<parameter name="P_PO_NUM_TO"         dataType="varchar2"  />
+	<parameter name="P_RELEASE_NUM_FROM"  dataType="varchar2"  />
+	<parameter name="P_RELEASE_NUM_TO"    dataType="varchar2"  />
+
+	
+</parameters>
+
+<dataQuery>
+<sqlStatement name="Q_COMMANDE">
+<![CDATA[ 
+/*Bon de commande*/
+select
+    comm.po_header_id,
+	--decode(comm.TYPE_LOOKUP_CODE , 'STANDARD', comm.segment1,comm.segment1||'.'||acomm.RELEASE_NUM ) num_comm,
+	decode(comm.TYPE_LOOKUP_CODE , 'STANDARD',comm.segment1,comm.segment1||'.'||acomm.RELEASE_NUM ) commande,
+	--comm.COMMENTS||'po_header_id='||comm.po_header_id  commande_desc,
+	  comm.COMMENTS  commande_desc,
+    nvl(comm.attribute1,'DVXXXX') NUM_DEVIS,
+	nvl(comm.segment1||acomm.release_num,'X') para, 
+	--decode(comm.TYPE_LOOKUP_CODE ,'STANDARD',comm.REVISION_NUM, acomm.REVISION_NUM) version ,
+	comm.REVISION_NUM version ,
+	to_char(sysdate, 'DD/MM/YYYY')       date_edition,
+    gl.segment3 CB,
+    fv.description   cb_name,
+    comm.TYPE_LOOKUP_CODE ,
+    decode(comm.TYPE_LOOKUP_CODE ,'BLANKET', acomm.attribute14,'PLANNED', acomm.attribute14, comm.attribute14) flag , 
+    decode(comm.TYPE_LOOKUP_CODE ,'BLANKET', acomm.authorization_status, 'PLANNED', acomm.authorization_status,comm.authorization_status) statut ,
+    Decode(decode(comm.TYPE_LOOKUP_CODE ,'BLANKET', acomm.authorization_status, 'PLANNED', acomm.authorization_status,comm.authorization_status),'APPROVED','Approuvée','Non Approuvée') statut_comm ,    
+	--Decode(decode(comm.TYPE_LOOKUP_CODE ,'BLANKET', acomm.authorization_status, 'PLANNED', acomm.authorization_status,comm.authorization_status),'APPROVED','Approuvee','Non Approuvee') statut_comm ,    
+	comm.NOTE_TO_VENDOR commentaire,
+	line_comm.unit_meas_lookup_code f_udm,
+    to_number(nvl(acomm.RELEASE_NUM,0)) num_appl,
+    decode(comm.TYPE_LOOKUP_CODE ,'BLANKET',acomm.approved_date, 'PLANNED',acomm.approved_date,comm.approved_date ) date_approb,
+    comm.currency_code devise,
+    per.full_name emetteur ,
+    v.segment1 num_fournisseur,
+    v.vendor_name fournisseur,
+    decode(comm.TYPE_LOOKUP_CODE ,'BLANKET',acomm.agent_id, 'PLANNED',acomm.agent_id,comm.agent_id ) agent,
+    decode(a.vendor_site_id,null,null,a.address_line1||' '||a.address_line2||' '||a.address_line3||','||a.CITY||','||a.COUNTRY)   adresse_f,
+    DECODE (comm.vendor_contact_id,NULL, NULL,vcontact.last_name || ', ' || vcontact.first_name) contact_f,
+    decode(comm.TYPE_LOOKUP_CODE ,'BLANKET',liv.shipment_num,'PLANNED',liv.shipment_num,line_comm.line_num) ligne_commande,
+    liv.shipment_num livraison_num,
+    decode(item.inventory_item_id,null,null,item.segment1||'.'||item.segment2||'.'||item.segment3) code_article,
+    line_comm.item_description||CHR(13)||line_comm.NOTE_TO_VENDOR article,
+    line_comm.unit_meas_lookup_code udm,
+	plt.attribute1 type_ligne,
+	line_comm.note_to_vendor note_vendor,
+--    sum(decode(comm.TYPE_LOOKUP_CODE,'BLANKET',liv.quantity,'PLANNED',liv.quantity,line_comm.quantity)) over (partition by to_number(comm.segment1),to_number(nvl(acomm.RELEASE_NUM,1)),line_comm.line_num,decode(comm.TYPE_LOOKUP_CODE,'BLANKET',1, 'PLANNED',1,liv.shipment_num)) quantite,
+    sum(decode(comm.TYPE_LOOKUP_CODE,'BLANKET',liv.quantity,'PLANNED',liv.quantity,line_comm.quantity)) over (partition by to_number(comm.segment1),to_number(nvl(acomm.RELEASE_NUM,1)),line_comm.line_num,decode(comm.TYPE_LOOKUP_CODE,'BLANKET',1, 'PLANNED',1,liv.shipment_num),venti.PO_DISTRIBUTION_ID) quantite,
+	decode(comm.TYPE_LOOKUP_CODE,'BLANKET',liv.price_override,'PLANNED',liv.price_override,line_comm.unit_price) prix_unit,
+    nvl(decode(comm.TYPE_LOOKUP_CODE,'BLANKET',decode (line_comm.order_type_lookup_code,'FIXED PRICE',line_comm.amount,'AMOUNT',line_comm.amount, liv.quantity * liv.price_override),'PLANNED',decode (line_comm.order_type_lookup_code,'FIXED PRICE',line_comm.amount,'AMOUNT',line_comm.amount, liv.quantity * liv.price_override),decode (line_comm.order_type_lookup_code,'FIXED PRICE',line_comm.amount,line_comm.quantity * line_comm.unit_price)) ,0) prix_ligne,
+    decode(comm.TYPE_LOOKUP_CODE,'BLANKET',nvl(XXSGMA_PO_TOTAL_COM.release_total_prix(acomm.po_release_id, ''),0),'PLANNED',nvl(XXSGMA_PO_TOTAL_COM.release_total_prix(acomm.po_release_id, ''),0),nvl(XXSGMA_PO_TOTAL_COM.HEADER_TOTAL_PRIX (comm.po_header_id, ''),0)) prix_commande,
+    decode (nvl(plt.attribute1,'NON'),'OUI',venti.AMOUNT_ORDERED,venti.QUANTITY_ORDERED) qt_livree,
+    to_char(nvl(liv.promised_date,liv.need_by_date), 'DD/MM/YYYY') date_liv,
+    local2.description lieu_livr,
+	local.description lieu_livr2,
+	(SELECT sum(nvl(recoverable_tax,0))  from po_distributions_all pd2
+        where 
+		--pd2.po_distribution_id=venti.po_distribution_id 
+		pd2.po_header_id=comm.po_header_id
+		) TOTAL_TVA
+from
+ap_suppliers v,
+ap_supplier_sites_all a,
+po_headers_all comm,
+po_releases_all acomm,
+po_vendor_contacts vcontact,
+PER_ALL_PEOPLE_F per,
+po_lines_all line_comm,
+FND_FLEX_VALUE_SETS 	jv,
+FND_FLEX_VALUES_VL 	fv,
+po_line_locations_all liv,     
+hr_locations_all_tl local,
+hr_locations_all_tl local2,
+po_distributions_all venti,
+gl_code_combinations gl , 
+MTL_SYSTEM_ITEMS  item,
+po_line_types_b plt
+where comm.po_header_id = acomm.po_header_id(+)
+--and decode(comm.TYPE_LOOKUP_CODE ,'BLANKET',nvl(acomm.po_release_id,0),1)!= 0
+and per.person_id = decode(comm.TYPE_LOOKUP_CODE ,'BLANKET',acomm.agent_id,comm.agent_id )
+and v.vendor_id(+) = comm.vendor_id
+and a.vendor_site_id(+) = comm.vendor_site_id 
+and vcontact.VENDOR_CONTACT_ID(+) = comm.vendor_contact_id
+and comm.po_header_id = line_comm.po_header_id
+and line_comm.CANCEL_FLAG <>'Y'
+and comm.po_header_id = liv.po_header_id
+and nvl(acomm.po_release_id,0) = nvl(liv.po_release_id,0)
+and liv.po_line_id = line_comm.po_line_id
+and plt.line_type_id = line_comm.line_type_id
+and liv.ship_to_location_id = local.location_id
+and nvl(venti.deliver_to_location_id,liv.ship_to_location_id) = local2.location_id
+and local.language = 'F'
+and local2.language = 'F'
+and item.inventory_item_id(+) = line_comm.item_id
+and item.ORGANIZATION_ID = liv.ship_to_organization_id
+and sysdate between per.EFFECTIVE_START_DATE and per.EFFECTIVE_END_DATE 
+and venti.code_combination_id = gl.code_combination_id
+and gl.segment3 = decode(nvl(xxsgma_ap_facture.get_nom_centre_budgetaire(fnd_profile.value('SGMA_CENTRE_BUDGETAIRE')), 'X'),'NS',gl.segment3,'X',gl.segment3,xxsgma_ap_facture.get_nom_centre_budgetaire(fnd_profile.value('SGMA_CENTRE_BUDGETAIRE')))
+and venti.PO_LINE_ID = line_comm.po_line_id
+and venti.LINE_LOCATION_ID = liv.LINE_LOCATION_ID
+and comm.segment1 >= nvl(:P_PO_NUM_FROM,-1)
+and comm.segment1 <= nvl(:P_PO_NUM_TO,999999999)
+and decode(comm.TYPE_LOOKUP_CODE ,'STANDARD',-1,acomm.RELEASE_NUM ) >= decode(comm.TYPE_LOOKUP_CODE ,'STANDARD',-1,nvl(:P_RELEASE_NUM_FROM,-1) )
+and decode(comm.TYPE_LOOKUP_CODE ,'STANDARD',-1,acomm.RELEASE_NUM ) <= decode(comm.TYPE_LOOKUP_CODE ,'STANDARD',-1,nvl(:P_RELEASE_NUM_TO,999999999) )
+and nvl(comm.segment1,-1) <= nvl(:P_PO_NUM_TO,-1)
+and nvl(comm.segment1,-1) >= nvl(:P_PO_NUM_FROM,-1)
+and fv.FLEX_VALUE_SET_id = jv.FLEX_VALUE_SET_id 
+and jv.FLEX_VALUE_SET_NAME = 'SGMA_GL_CCF_CB'
+and fv.FLEX_VALUE = gl.segment3
+--sdi:Start
+and comm.org_id=mo_global.get_current_org_id()
+and comm.AUTHORIZATION_STATUS='APPROVED'
+--and comm.vendor_site_id=vcontact.vendor_site_id
+--sdi:End
+order by commande, num_appl, ligne_commande, livraison_num
+
+]]>
+</sqlStatement>
+ <sqlStatement name="Q_INFOSGMA">
+<![CDATA[  
+  select 	   
+       orga.attribute1	  		capt,
+	   orga.attribute2			reg_com,
+	   orga.attribute3			id_fisc,
+	   orga.attribute4			patente,
+	   orga.attribute5			cnss,
+       orga.name                            name,
+       orga.telephone_number_1		tele_orga,      	   
+	   orga.telephone_number_3		fax_orga,
+	   orga.ADDRESS_LINE_1 ||', '|| orga.town_or_city || ', ' || country.TERRITORY_SHORT_NAME adresse
+	   
+from  hr_organization_units_v orga,
+      fnd_territories_vl country
+where     orga.type = 'UO'
+  and     orga.name = 'SGMA_UO'
+  and orga.country = country.TERRITORY_CODE
+  ]]> 
+</sqlStatement>
+
+ <sqlStatement name="Q_TOT">
+<![CDATA[  
+  select TOTAL_TTC,xxsgma_toolkit.amount_in_words(TOTAL_TTC,:DEVISE) TOTAL_LETTRE from
+  (
+  SELECT (:TOTAL_HT+:TOTAL_TVA) TOTAL_TTC from dual
+)		
+  ]]>
+</sqlStatement>
+</dataQuery>
+<dataStructure>
+	<group name="G_COMMANDE" source="Q_COMMANDE">
+	    <element name="para" dataType="varchar2" value="para"/>
+		<element name="date_edition" dataType="varchar2" value="date_edition"/>
+		<element name="flag" dataType="varchar2" value="flag"/>
+        <element name="statut" dataType="varchar2" value="statut"/>
+		<element name="num_fournisseur" dataType="varchar2" value="num_fournisseur"/>
+		<element name="fournisseur" dataType="varchar2" value="fournisseur"/>
+		<element name="adresse_f" dataType="varchar2" value="adresse_f"/>
+		<element name="contact_f" dataType="varchar2" value="contact_f"/>   					
+		<element name="commande" dataType="varchar2" value="commande"/>
+		<element name="commande_desc" dataType="varchar2" value="commande_desc"/>		
+        <element name="version" dataType="varchar2" value="version"/> 
+		<element name="date_approb" dataType="varchar2" value="date_approb"/>
+		<element name="devise" dataType="varchar2" value="devise"/>
+		<element name="emetteur" dataType="varchar2" value="emetteur"/>
+		<element name="agent" dataType="varchar2" value="agent"/>
+		<element name="statut_comm" dataType="varchar2" value="statut_comm"/>
+		<element name="commentaire" dataType="varchar2" value="commentaire"/>
+		<element name="cb" dataType="varchar2" value="cb"/>
+		<element name="cb_name" dataType="varchar2" value="cb_name"/>
+		<element name="TOTAL_HT" dataType="varchar2" value="prix_commande"/>
+		<element name="TOTAL_TVA" dataType="varchar2" value="TOTAL_TVA"/>
+		
+		<group name="G_LIGNE_COMMANDE" source="Q_COMMANDE">
+			<element name="ligne_commande" dataType="varchar2" value="ligne_commande"/> 
+			<element name="prix_ligne" dataType="varchar2" value="prix_ligne"/> 
+			<element name="code_article" dataType="varchar2" value="code_article"/>
+			<element name="article" dataType="varchar2" value="article"/>
+			<element name="type_ligne" dataType="varchar2" value="type_ligne"/>
+			<element name="note_vendor" dataType="varchar2" value="note_vendor"/>
+			<element name="quantite" dataType="number" value="quantite"/>
+			<element name="prix_unit" dataType="number" value="prix_unit"/>
+			<element name="prix_commande" dataType="number" value="prix_commande"/>
+			<group name="G_LIGNE_LIV" source="Q_COMMANDE">
+				<element name="ligne_commande" dataType="varchar2" value="ligne_commande"/>
+				<element name="code_article" dataType="varchar2" value="code_article"/>
+				<element name="article" dataType="varchar2" value="article"/>
+				<element name="livraison_num" dataType="varchar2" value="livraison_num"/>
+				<element name="f_udm" dataType="varchar2" value="f_udm"/>				
+				<element name="udm" dataType="varchar2" value="udm"/>
+				<element name="qt_livree" dataType="number" value="qt_livree"/>
+				<element name="date_liv" dataType="varchar2" value="date_liv"/>
+				<element name="lieu_livr" dataType="varchar2" value="lieu_livr"/>
+			</group>
+         </group> 		
+		<group name="G_ORGA" source="Q_INFOSGMA">
+			<element name="name" dataType="varchar2" value="name" /> 
+			<element name="date_edition" dataType="varchar2" value="date_edition" /> 
+  			<element name="capt" dataType="varchar2" value="capt" /> 
+  			<element name="reg_com" dataType="varchar2" value="reg_com" /> 
+ 			<element name="id_fisc" dataType="varchar2" value="id_fisc" /> 
+  			<element name="patente" dataType="varchar2" value="patente" /> 
+  			<element name="cnss" dataType="varchar2" value="cnss" />
+			<element name="tele_orga" dataType="varchar2" value="tele_orga" /> 
+			<element name="fax_orga" dataType="varchar2" value="fax_orga" />
+			<element name="adresse" dataType="varchar2" value="adresse" />
+ 		</group>
+		<group name="G_TOT" source="Q_TOT">
+		<element name="TOTAL_TTC" dataType="varchar2" value="TOTAL_TTC"/>
+		<element name="TOTAL_LETTRE" dataType="varchar2" value="TOTAL_LETTRE"/>
+		</group>
+	</group>
+</dataStructure>
+<!-- 
+<dataTrigger name="afterReport" source="XXSGMA_FLAG_EDITION_COMMANDE.EDITION_COMMANDE_FLAG(:P_PO_NUM_FROM, :P_release_num_from)" /> 
+-->
+</dataTemplate>

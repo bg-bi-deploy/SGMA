@@ -1,0 +1,252 @@
+<!-- $Header: DATA_TEMPLATE_SGMA_XXSGMATVADEDUCTIBLE.xml 115.0 2011/05/11 11:30:01 xdouser noship $ --><!-- dbdrv: none -->
+<dataTemplate name="XXSGMATVADEDUCTIBLE" description="Etat, TVA deductible" version="1.0"> 
+<parameters>
+      <parameter name="p_from_date" datatype="date"/>
+      <parameter name="p_to_date" datatype="date"/>
+      <parameter name="p_nature" datatype="varchar2"/>
+      <parameter name="p_taux_tva" datatype="varchar2"/>
+</parameters>
+
+<dataQuery>
+<sqlStatement name="Q_TVA">
+<![CDATA[ 
+select distinct
+       :p_from_date xx_date_deb, 
+       :p_to_date xx_date_fin, 
+       decode(:p_nature,'I','Investissement','F','Fonctionnement','Investissement & Fonctionnement') nature,
+ref_reglement,
+factur_num,
+compte_id,
+nvl(taux_tva,0) taux_tva, 
+fournisseur,   
+vendor_type, 
+id_fiscal,
+dat_f,    
+description,
+decode(nvl(prix_ttc+retenu,0),0,0,((ammt + escompte ) / (prix_ttc+retenu))) p1,
+sum(amt_ht) over (partition by ref_reglement,factur_num, compte_id, taux_tva, fournisseur) prix_ht,
+round((decode(nvl(prix_ttc+retenu,0),0,0,((ammt + escompte ) / (prix_ttc+retenu)))),4) * (sum(amt_ht) over (partition by ref_reglement,factur_num, compte_id, taux_tva,fournisseur)) reg_ht,
+round((decode(nvl(prix_ttc+retenu,0),0,0,((ammt + escompte ) / (prix_ttc+retenu))))* (taux_tva)/100,4)* (sum(amt_ht) over (partition by ref_reglement,factur_num, compte_id, taux_tva, fournisseur)) tva_pay,
+round((decode(nvl(prix_ttc+retenu,0),0,0,((ammt + escompte ) / (prix_ttc+retenu))))* (taux_tva/100) * (prorata/100),4) * (sum(amt_ht) over (partition by ref_reglement,factur_num, compte_id, taux_tva, fournisseur)) tva_a_recp, 
+pay_methode,
+date_reglement, 
+total        
+from
+(
+select 
+       f.invoice_type_lookup_code tlc,
+       prora.pro prorata,
+       nvl(f.attribute15,'F')   nat,
+       pp1.amount   ammt,
+       venti.amount     amt_ht,
+       f.INVOICE_AMOUNT   prix_ttc,     
+       f.invoice_id,
+       nvl(retenu.retained,0)          retenu,
+--       prora.pro                prora, 
+       v.segment1               num_fournisseur,
+       decode(f.invoice_type_lookup_code,'EXPENSE REPORT',v_nf.vendor_name,v.vendor_name) fournisseur,
+       decode(f.invoice_type_lookup_code,'EXPENSE REPORT',v_nf.ATTRIBUTE_CATEGORY , v.ATTRIBUTE_CATEGORY )    vendor_type,
+       decode(f.invoice_type_lookup_code,'EXPENSE REPORT',v_nf.attribute1, v.attribute1 )             id_fiscal,
+       f.invoice_date            dat_f,
+       ligne.amount              prix_ht_ligne,
+       f.description             description,
+       venti.description         desc_venti,
+       f.GL_DATE               date_gl,
+       venti.ACCOUNTING_DATE         date_coompt,
+       '"'||glc.segment2||'"'         compte_id,
+       nvl(avoirs.montant,0)         avoir,
+--       max(nvl(ligne.tax_rate,0)) over (partition by f.invoice_id, prora.LINE_ORIGINE)   taux_tva,
+       prora.tax_rate                taux_tva,
+       f.invoice_num                 factur_num,
+       f.invoice_date                date_facture,
+--       nvl(tax.HT,0)                 prix_ht,
+--       nvl(tva.tax,0)                total_tva,
+--       nvl(prora.pro,0)              prorata,
+       nvl(prora.amt,0)              amt,
+       nvl((prora.pro * prora.amt / 100),0) amtpro,
+       nvl(DECODE(NVL(f.payment_status_flag, 'N'), 'Y',((f.invoice_amount - nvl(AP_INVOICES_PKG.Get_Amount_Withheld(f.invoice_id),0))- nvl(gl_currency_api.convert_amount(
+                                                             f.payment_currency_code,
+                                                             f.invoice_currency_code,
+                                                             f.payment_cross_rate_date,
+                                                             f.payment_cross_rate_type,
+                                                             f.discount_amount_taken ),0 )+ decode(nvl(f.net_of_retainage_flag,'N'),'N',nvl(retenu.retained,0),0)),  nvl(gl_currency_api.convert_amount(
+                                                                                     f.payment_currency_code,
+                                                                                     f.invoice_currency_code,
+                                                                                     f.payment_cross_rate_date,
+                                                                                     f.payment_cross_rate_type,
+                                                                                     f.amount_paid),0)),0) total_pay,
+        date_r1.rgl_date                        date_reglement, 
+        date_r1.ref_pay                        ref_reglement,
+        nvl(date_r1.DESCRIPTION,date_r1.PAYMENT_METHOD_CODE) pay_methode,
+        nvl(gl_currency_api.convert_amount(
+                                                             f.payment_currency_code,
+                                                             f.invoice_currency_code,
+                                                             f.payment_cross_rate_date,
+                                                             f.payment_cross_rate_type,
+                                                             f.discount_amount_taken ),0 ) escompte ,
+        rec_tva.total total
+                                                                                                                                                                                                                                                                                                                                                                                                             
+from   ap_invoices_all                   f,
+       po_vendors                        v,
+       ap_invoice_lines_all              ligne,
+       gl_code_combinations              gl,
+       AP_INVOICE_DISTRIBUTIONS_all      venti,
+       gl_code_combinations glc,
+       AP_INVOICE_PAYMENTS_ALL pp1,
+       ZX_rates_tl a,
+       AP_EXPENSE_REPORT_HEADERS_all aerh,
+       AP_EXPENSE_REPORT_LINES_all aerl, 
+       po_vendors                        v_nf, 
+         ( select f.invoice_id factu, 
+                  sum(nvl(aid.amount,0)) retained
+                from ap_invoice_distributions_all aid,
+                     ap_invoices_all f
+                where aid.invoice_id = f.invoice_id
+                and aid.line_type_lookup_code = 'AWT'
+                and exists (select 'X' 
+                            from ap_invoice_lines_all ail
+                            where ail.invoice_id = f.invoice_id
+                            and ail.line_number = aid.invoice_line_number
+                            and ail.line_type_lookup_code <> 'RETAINAGE RELEASE')
+                            --and invoice_num = 'TVA_1'
+                            group by f.invoice_id 
+         ) retenu,
+         
+         ( select distinct pay.invoice_id rgl_fact, 
+                           ac.check_date rgl_date, 
+                           ac.CHECK_NUMBER ref_pay,
+                           ac.check_id     reg, 
+                           ac.PAYMENT_METHOD_CODE, 
+                           pay_m.PAYMENT_METHOD_NAME DESCRIPTION
+                 from  AP_INVOICE_PAYMENTS_ALL pay,
+                      iby_payment_methods_vl pay_m,         
+                        ap_checks_all ac
+                where  pay.check_id = ac.check_id
+                  and  pay_m.PAYMENT_METHOD_CODE(+) = ac.PAYMENT_METHOD_CODE
+                 /* and  ac.check_date = (select max (ac1.check_date) from AP_INVOICE_PAYMENTS_ALL pay1,
+                                                              ap_checks_all ac1
+                               where pay1.check_id = ac1.check_id
+                                 and pay1.invoice_id = pay.invoice_id )   */                            
+         ) date_r1,
+
+          
+         ( select invoice_id, sum(amount) as total 
+           from AP_INVOICE_DISTRIBUTIONS_all dist 
+           where dist.charge_applicable_to_dist_id in 
+                   (select dist1.invoice_distribution_id 
+                    from AP_INVOICE_DISTRIBUTIONS_all dist1
+                    where dist1.LINE_TYPE_LOOKUP_CODE in ('ITEM') )
+           and LINE_TYPE_LOOKUP_CODE = 'REC_TAX'
+           group by invoice_id  
+         ) rec_tva,   
+       
+       
+      /* Montant de l'avoir par facture*/
+         ( select distinct a.fact, f.invoice_num, f.INVOICE_AMOUNT montant 
+           from   ap_invoices_all f,
+                  ap_invoice_lines_all f_line,
+                     (select  distinct f.invoice_id fact, f_line.INVOICE_ID avoir
+                     from     ap_invoices_all f,
+                              ap_invoice_lines_all f_line
+                     where  f_line.CORRECTED_INV_ID = f.invoice_id) a
+           where a.avoir = f.invoice_id
+         ) avoirs,
+         
+
+     (select f.invoice_id fact,
+             f.invoice_num, 
+             ligne.line_number line,
+             zls.tax_rate tax_rate,
+--             ligne.tax_rate,
+             f_dist2.INVOICE_LINE_NUMBER line_origine,
+             f_dist.TAX_CODE_ID , 
+             f_dist.REC_NREC_RATE pro , 
+             f_dist.amount amt,
+             zxc.TAX_ACCOUNT_CCID ccid 
+             
+      from  ap_invoice_lines_all ligne, 
+            ap_invoices_all f,
+            AP_INVOICE_DISTRIBUTIONs_all f_dist,
+            AP_INVOICE_DISTRIBUTIONs_all f_dist2,
+            zx_lines_summary zls,
+            zx_accounts zxc
+      where  f_dist.LINE_TYPE_LOOKUP_CODE='REC_TAX'
+      and    f_dist.invoice_id = f.invoice_id
+      and    f_dist.invoice_line_number = ligne.line_number
+      and    f_dist.summary_TAX_LINE_ID = zls.summary_tax_line_id
+      and    f_dist.CHARGE_APPLICABLE_TO_DIST_ID = f_dist2.INVOICE_DISTRIBUTION_ID
+      and    f.invoice_id = ligne.invoice_id
+      and    nvl(ligne.CANCELLED_FLAG,'N') = 'N'
+      and    nvl(ligne.DISCARDED_FLAG,'N') = 'N'
+      and    zxc.TAX_ACCOUNT_ENTITY_ID (+) = zls.TAX_RATE_ID
+      and    nvl(f_dist.reversal_flag,'N') = 'N'
+      ) prora
+
+
+where  f.VENDOR_ID = v.VENDOR_ID(+)
+  and  ligne.invoice_id = venti.INVOICE_ID
+  and  ligne.LINE_NUMBER = venti.invoice_line_number
+  and  ligne.INVOICE_ID = f.INVOICE_ID
+  and  venti.DIST_CODE_COMBINATION_ID = gl.CODE_COMBINATION_ID(+)
+  and glc.code_combination_id(+) = prora.ccid 
+  and  retenu.factu(+) = f.invoice_id
+  and  date_r1.rgl_fact(+) = f.invoice_id
+  and  rec_tva.invoice_id(+) = f.invoice_id
+  and  avoirs.fact(+) = f.invoice_id
+  and  prora.fact(+) = ligne.invoice_id
+  and  prora.line_origine(+) = ligne.line_number  --origine
+  and  ligne.TAX_RATE_ID = a.TAX_RATE_ID(+)
+  and  pp1.invoice_id = f.invoice_id
+  and  date_r1.reg = pp1.check_id
+  and    nvl(ligne.CANCELLED_FLAG,'N') = 'N'
+  and    nvl(ligne.DISCARDED_FLAG,'N') = 'N'
+  and date_r1.rgl_date >= TO_DATE(substr(:p_from_date,0,10),'YYYY/MM/DD')
+  and date_r1.rgl_date <= TO_DATE(substr(:p_to_date,0,10),'YYYY/MM/DD')
+  and  nvl(:p_nature,f.attribute15) = f.attribute15
+  and  prora.tax_rate = nvl(:p_taux_tva,prora.tax_rate)
+-----------------
+ and nvl(a.TAX_RATE_NAME,'X')  not like ('F%') 
+ and nvl(a.LANGUAGE,'F') = 'F'
+ and nvl(prora.tax_rate,0) not in(11.111111111 , 0)
+-- and nvl(prora.tax_rate,0) != 0
+ and nvl(aerh.EMPLOYEE_ID,1) = nvl(v.employee_id,nvl(aerh.EMPLOYEE_ID,1))
+ and aerh.INVOICE_NUM(+) = f.INVOICE_NUM
+ and f.reference_key1 = aerh.report_header_id(+)
+ and aerl.REPORT_HEADER_ID(+) = ligne.REFERENCE_key1
+ and aerl.report_line_id(+) = ligne.REFERENCE_key2
+ and v_nf.vendor_id(+) = aerl.attribute1
+
+ and venti.line_type_lookup_code not in ('REC_TAX','NONREC_TAX')
+)
+ where total_pay !=0
+  and round((decode(nvl(prix_ttc+retenu,0),0,0,((ammt + escompte ) / (prix_ttc+retenu))))* (taux_tva/100) * (prorata/100),4)  != 0
+--and factur_num = 'NF_LLA_1'
+order by  factur_num, ref_reglement, compte_id, taux_tva, fournisseur
+
+]]>
+</sqlStatement>
+</dataQuery>
+
+<dataStructure> 
+<group name="G_FACT" source="Q_TVA"> 
+	<element name="xx_date_deb" dataType="varchar2" value="xx_date_deb"/>
+	<element name="xx_date_fin" dataType="varchar2" value="xx_date_fin"/>
+	<element name="compte_id" dataType="varchar2" value="compte_id"/>
+	<element name="fournisseur" dataType="varchar2" value="fournisseur"/>
+	<element name="vendor_type" dataType="varchar2" value="vendor_type"/>
+	<element name="id_fiscal" dataType="varchar2" value="id_fiscal"/>
+	<element name="dat_f" dataType="varchar2" value="dat_f"/>
+	<element name="factur_num" dataType="varchar2" value="factur_num"/>
+	<element name="description" dataType="varchar2" value="description"/>
+	<element name="reg_ht" dataType="number" value="reg_ht"/>
+	<element name="taux_tva" dataType="number" value="taux_tva"/>
+	<element name="tva_pay" dataType="number" value="tva_pay"/>
+	<element name="tva_a_recp" dataType="number" value="tva_a_recp"/>
+	<element name="pay_methode" dataType="varchar2" value="pay_methode"/>
+	<element name="date_reglement" dataType="varchar2" value="date_reglement"/>
+	<element name="ref_reglement" dataType="varchar2" value="ref_reglement"/>  
+	<element name="nature" dataType="varchar2" value="nature"/>          
+</group>
+</dataStructure>
+
+</dataTemplate>

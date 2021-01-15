@@ -1,0 +1,109 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+
+<dataTemplate name="SGPO1BA"  description="Etat de situation des commandes" dataSourceRef="APPS" defaultPackage="" version="1.0">
+<parameters>
+  <parameter name="P_DATERECDU"  dataType="varchar2"/>
+  <parameter name="P_DATERECAU"  dataType="varchar2"/>
+</parameters>
+
+<dataQuery>
+<sqlStatement name="Q_BAUX">
+<![CDATA[
+
+select NumContrat,NatureBien,LieuSituation,NomProprio,DateConclusion,MontantAnnLoc,sum(MontantLoyChrg) MontantLoyChrg,BAILORDIN,NPERIOD from
+(
+SELECT 
+poh.segment1 NumContrat,
+ffvt.description  NatureBien,
+msit.long_description LieuSituation, 
+aps.vendor_name NomProprio,
+to_date(poh.attribute3,'DD/MM/RRRR') DateConclusion,
+pol.UNIT_PRICE*decode(pol.unit_meas_lookup_code,'Mois',12,'Trimestre',4,'Semestre',2,'Année',1,0) MontantAnnLoc,
+pol.unit_price*poll.quantity_received+pod.nonrecoverable_tax MontantLoyChrg,
+'X'   BAILORDIN,
+round(months_between(sysdate,to_date(poh.attribute3,'DD/MM/RRRR'))/12,2)  NPERIOD
+ from 
+ po_headers_all poh,
+ po_releases_all por,
+ po_lines_all pol,
+ po_line_locations_all poll,
+ po_distributions_all pod,
+ mtl_system_items_b msi,
+ mtl_system_items_tl msit,
+ hr_all_organization_units hou,
+ FND_FLEX_VALUE_SETS ffvs,
+ fnd_flex_values ffv,
+ fnd_flex_values_tl  ffvt,
+ ap_suppliers aps
+ where
+ 1=1
+and poh.type_lookup_code  in ('BLANKET')
+--and poh.po_header_id=45009
+and poh.po_header_id=por.po_header_id
+and poh.po_header_id=pol.po_header_id
+and pol.po_header_id=poll.po_header_id
+and pol.po_line_id=poll.po_line_id
+and poll.po_release_id=por.po_release_id
+and poll.line_location_id=pod.line_location_id
+and msi.inventory_item_id = pol.item_id
+and msi.organization_id = hou.organization_id
+and msi.inventory_item_id =msit.inventory_item_id
+and msi.organization_id = msit.organization_id
+and msit.language=userenv('LANG')
+and hou.name= 'REF'
+and ffvs.flex_value_set_name = 'SGMA_JV_INV_Sous Famille articles'
+and ffvs.flex_value_set_id = ffv.flex_value_set_id
+and ffv.flex_value_id = ffvt.flex_value_id 
+and ffvt.language=userenv('LANG')
+and ffv.flex_value = msi.segment2 --'G99004
+and ffv.parent_flex_value_low = msi.segment1
+and aps.vendor_id=poh.vendor_id
+and exists (select null from  rcv_transactions rcvt 
+   where
+    rcvt.po_distribution_id=pod.po_distribution_id
+    and rcvt.transaction_type ='RECEIVE'
+    and rcvt.creation_date between to_date(:P_DATERECDU,'YYYY/MM/DD HH24:MI:SS') and to_date(:P_DATERECAU,'YYYY/MM/DD HH24:MI:SS')
+)
+--group by poh.segment1, ffvt.description ,msit.long_description,aps.vendor_name,poh.attribute1,pol.UNIT_PRICE,pol.unit_meas_lookup_code
+--pol.UNIT_PRICE*decode(pol.unit_meas_lookup_code,'Mois',12,'Trimestre',4,'Semestre',2,'Année',1,0) MontantAnnLoc,
+)
+group by NumContrat,NatureBien,LieuSituation,NomProprio,DateConclusion,MontantAnnLoc,BAILORDIN,NPERIOD
+
+]]>
+</sqlStatement>
+
+
+<sqlStatement name="Q_INFO">
+<![CDATA[
+select 
+to_char(to_date(:P_DATERECDU,'YYYY/MM/DD HH24:MI:SS'),'DD/MM/YYYY') P_DATERECDU_C,
+to_char(to_date(:P_DATERECAU,'YYYY/MM/DD HH24:MI:SS'),'DD/MM/YYYY') P_DATERECAU_C
+from dual
+]]>
+</sqlStatement>
+</dataQuery>
+
+<dataStructure>
+<group name="G_INFO" source="Q_INFO">
+		<element name="P_DATERECDU_C"  dataType="varchar2"   value="P_DATERECDU_C"/>
+		<element name="P_DATERECAU_C"  dataType="varchar2"   value="P_DATERECAU_C"/>
+</group>		
+<group name="G_TOT" source="Q_BAUX">
+		<element name="TOTALMNTANNLOC"  dataType="number"   value="G_BAUX.MontantAnnLoc"   function="SUM()" />
+		<element name="TOTMNTLOYCHRG"   dataType="number"   value="G_BAUX.MontantLoyChrg"  function="SUM()" />		
+		<group name="G_BAUX"  source="Q_BAUX">
+			<element name="NumContrat"     dataType="varchar2" value="NumContrat"/>
+			<element name="NatureBien"     dataType="varchar2" value="NatureBien"/>
+			<element name="LieuSituation"  dataType="varchar2" value="LieuSituation"/>
+			<element name="NomProprio"     dataType="varchar2" value="NomProprio"/>
+			<element name="DateConclusion" dataType="date"     value="DateConclusion"/>
+			<element name="MontantAnnLoc"  dataType="number"   value="MontantAnnLoc"/>
+			<element name="MontantLoyChrg" dataType="number"   value="MontantLoyChrg"/>
+			<element name="BAILORDIN"      dataType="varchar2" value="BAILORDIN"/>
+			<element name="NPERIOD"        dataType="number"   value="NPERIOD"/>
+		</group>
+
+</group>	
+</dataStructure>
+
+</dataTemplate>

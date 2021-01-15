@@ -1,0 +1,111 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<dataTemplate name="SGAP11TVADED"> 
+<parameters>
+  <parameter name="P_DATEDU"  dataType="varchar2"/>
+  <parameter name="P_DATEAU"  dataType="varchar2"/>
+</parameters>
+
+<dataQuery>
+<sqlStatement name="Q_TVADED">
+<![CDATA[
+select  line_number,NumFact,DateFact,NomRaisonFrn,IdfFrn,IceFrn,DsgnBnSrvc,
+MntHT,
+sum(TauxTva) TauxTva,
+sum(MntHT*TauxTva/100) MntTva,
+sum(MntHT*(1+TauxTva/100)) MntTTC,
+TauxPrataDed,MntTvaRec,ModePai,DatePai
+from
+(
+SELECT 
+apinvl1.line_number,
+apinv.INVOICE_NUM NumFact,
+to_char(apinv.INVOICE_DATE,'DD/MM/YYYY') DateFact,
+aps.vendor_name  NomRaisonFrn,
+aps.attribute1 IdfFrn,
+aps.attribute2 IceFrn,
+apinvl1.description DsgnBnSrvc,
+nvl(nvl(apinvl1.base_amount ,apinvl1.amount),0) MntHT ,
+nvl(zxl.TAX_RATE,0)  TauxTva,
+nvl(zxl.tax_amt,0) MntTva,
+0 MntTTC,
+nvl(apinvd2.rec_nrec_rate,0) TauxPrataDed,
+nvl(nvl(apinvd2.base_amount,apinvd2.amount),0) MntTvaRec,
+paym.PAYMENT_METHOD_NAME ModePai,
+to_char(apc.CHECK_DATE,'DD/MM/YYYY') DatePai
+--,zxl.*
+ from 
+  ap_invoices_all apinv
+ ,AP_INVOICE_PAYMENTS_ALL appay
+ ,AP_INVOICE_DISTRIBUTIONS_all apinvd1
+ ,AP_INVOICE_DISTRIBUTIONS_all apinvd2
+ ,ap_checks_all apc
+ ,ap_suppliers aps
+ ,ap_invoice_lines_all apinvl1
+ ,ZX_LINES zxl
+  ,iby_payment_methods_vl paym
+ where 
+ 1=1
+ and apinvl1.LINE_TYPE_LOOKUP_CODE= 'ITEM'
+ --and apinv.invoice_id in (47010,33008)
+ --and apinv.invoice_id in (39019)
+--and apinv.invoice_id in (18507,14793,188525,177200,545011,53965) --bg-bi server
+--and apinv.invoice_num='10016'
+ and apinv.vendor_id=aps.vendor_id
+ and apinv.invoice_id=apinvl1.invoice_id
+ and zxl.trx_id(+)=apinv.invoice_id
+ and zxl.trx_line_number(+)=apinvl1.line_number
+ and zxl.trx_level_type(+) = 'LINE'
+ --and zxl.trx_line_id = 1
+ and zxl.CANCEL_FLAG(+) ='N'
+ and appay.invoice_id=apinv.invoice_id
+ and nvl(appay.reversal_flag,'N') = 'N'
+ and appay.check_id=apc.check_id
+ and apinv.invoice_id = apinvd1.invoice_id(+)
+ and apinvl1.line_number=apinvd1.invoice_line_number
+ and apinv.invoice_id = apinvd2.invoice_id(+)
+ and apinvd1.invoice_distribution_id = apinvd2.charge_applicable_to_dist_id(+)
+ and apinvd2.line_type_lookup_code(+) = 'REC_TAX'
+ and paym.PAYMENT_METHOD_CODE(+)=apc.PAYMENT_METHOD_CODE
+ and apc.check_date between to_date(:P_DATEDU,'RRRR/MM/DD HH24:MI:SS') and to_date(:P_DATEAU,'RRRR/MM/DD HH24:MI:SS')
+ )
+ group by
+ line_number,NumFact,DateFact,NomRaisonFrn,IdfFrn,IceFrn,DsgnBnSrvc,MntHT,TauxPrataDed,MntTvaRec,ModePai,DatePai
+ order by 2,1
+]]>
+</sqlStatement>
+
+<sqlStatement name="Q_INFO">
+<![CDATA[
+select 
+to_char(to_date(:P_DATEDU,'YYYY/MM/DD HH24:MI:SS'),'DD/MM/YYYY') P_DATEDU_C,
+to_char(to_date(:P_DATEAU,'YYYY/MM/DD HH24:MI:SS'),'DD/MM/YYYY') P_DATEAU_C
+from dual
+]]>
+</sqlStatement>
+
+</dataQuery>
+
+<dataStructure>
+<group name="G_INFO" source="Q_INFO">
+		<element name="P_DATEDU_C"  dataType="varchar2"   value="P_DATEDU_C"/>
+		<element name="P_DATEAU_C"  dataType="varchar2"   value="P_DATEAU_C"/>
+</group>	
+<group name="G_TVADED"  source="Q_TVADED">
+	<element name="NumFact"       value="NumFact"/>
+	<element name="DateFact"      value="DateFact"/>
+	<element name="NomRaisonFrn"  value="NomRaisonFrn"/>
+	<element name="IdfFrn"        value="IdfFrn"/>
+	<element name="IceFrn"        value="IceFrn"/>
+	<element name="DsgnBnSrvc"    value="DsgnBnSrvc"/>
+	<element name="MntHT"         value="MntHT"/>
+	<element name="TauxTva"       value="TauxTva"/>
+	<element name="MntTva"        value="MntTva"/>
+	<element name="MntTTC"        value="MntTTC"/>
+	<element name="TauxPrataDed"  value="TauxPrataDed"/>
+	<element name="MntTvaRec"     value="MntTvaRec"/>
+	<element name="ModePai"       value="ModePai"/>
+	<element name="DatePai"       value="DatePai"/>
+</group>
+</dataStructure>
+
+</dataTemplate>
