@@ -1,0 +1,50 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+
+<dataTemplate name="SGAP14DECHON"> 
+<parameters>
+<parameter name="Date"  dataType="Date"/></parameter>
+<parameter name="Resultat"  dataType="varchar"/></parameter>
+</parameters>
+
+<dataQuery>
+<sqlStatement name="Q_DEC_HON">
+<![CDATA[
+
+SELECT 
+'XXX' RaisonSoc,
+'XXX' NidFisc,
+'XXX' NaffCnss,
+'XXX' NidTP,
+'XXX' AdressSGS,
+'XXX' Ville,
+'XXX' Profession,
+'XXX' Nationalite,
+'XXX' Honoraires,
+'XXX' Commiss,
+'XXX' Rabais,
+'XXX' MntRetenu,
+'XXX' NumFact
+ from dual; 	   
+]]>
+</sqlStatement>
+</dataQuery>
+
+<dataStructure>
+	<group name="DEC_HON"  source="Q_DEC_HON">
+	<element name="RaisonSoc"  value="RaisonSoc"/>
+	<element name="NidFisc"  value="NidFisc"/>
+	<element name="NaffCnss"  value="NaffCnss"/>
+	<element name="NidTP"  value="NidTP"/>
+	<element name="AdressSGS"  value="AdressSGS"/>
+	<element name="Ville"  value="Ville"/>
+	<element name="Profession"  value="Profession"/>
+	<element name="Nationalite"  value="Nationalite"/>
+	<element name="Honoraires"  value="Honoraires"/>
+	<element name="Commiss"  value="Commiss"/>
+	<element name="Rabais"  value="Rabais"/>
+	<element name="MntRetenu"  value="MntRetenu"/>
+	<element name="NumFact"  value="NumFact"/>
+</group>
+</dataStructure>
+
+</dataTemplate>
