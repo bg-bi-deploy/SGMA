@@ -1,0 +1,51 @@
+Linux octopi 4.19.97-v7+ #1294 SMP Thu Jan 30 13:15:58 GMT 2020 armv7l
+
+The programs included with the Debian GNU/Linux system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
+permitted by applicable law.
+Last login: Sun Jan 17 18:19:07 2021 from 192.168.1.109
+mkdir A1618
+
+cd A1618
+
+echo "said DINARI" > list.txt
+
+touch pop.txt
+
+touch zaz.txt
+
+touch 3310.xml
+
+
+
+#exit
+------------------------------------------------------------------------------
+Access OctoPrint from a web browser on your network by navigating to any of:
+
+    http://octopi.local
+    http://192.168.1.103
+
+https is also available, with a self-signed certificate.
+------------------------------------------------------------------------------
+OctoPrint version : 1.3.12
+OctoPi version    : 0.17.0
+------------------------------------------------------------------------------
+
+pi@octopi:~$ mkdir A1618
+pi@octopi:~$ 
+pi@octopi:~$ cd A1618
+pi@octopi:~/A1618$ 
+pi@octopi:~/A1618$ echo "said DINARI" > list.txt
+pi@octopi:~/A1618$ 
+pi@octopi:~/A1618$ touch pop.txt
+pi@octopi:~/A1618$ 
+pi@octopi:~/A1618$ touch zaz.txt
+pi@octopi:~/A1618$ 
+pi@octopi:~/A1618$ touch 3310.xml
+pi@octopi:~/A1618$ 
+pi@octopi:~/A1618$ 
+pi@octopi:~/A1618$ 
+pi@octopi:~/A1618$ #exit
