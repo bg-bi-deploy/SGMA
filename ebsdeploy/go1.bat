@@ -1,0 +1,1 @@
+putty  -ssh  192.168.1.106 -l oracle -pw tel0679825351 -m ls.sh
